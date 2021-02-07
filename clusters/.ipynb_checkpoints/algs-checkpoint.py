@@ -1,75 +1,87 @@
+import numpy
+from datetime import datetime
+import numba
+
+
 class HierarchicalClustering():
-    import numpy
     def __init__(self,distance_paradigm,cluster_number):
         self.dist_prdgm = distance_paradigm
         self.dendogram  = [] #somethings a matric maybe?
         self.cluster_number = cluster_number
+
         
     def update_cluster(self,cluster_number):
         self.cluster_number = cluster_number
         
     def get_data(self,objects_to_cluster):
         self.to_cluster = objects_to_cluster
-        
+        self.data_expanded = numpy.zeros((len(self.to_cluster),1024))
+        i = 0
+        for x in self.to_cluster:
+            self.data_expanded[i,x.OnBits] = 1
+            i = i + 1
+    
+    @numba.jit(parallel = True)    
     def calculate_distances(self):
-        pass
+        num_data = int(len(self.to_cluster))
+        print(num_data)
+        self.all_distances = numpy.full((num_data,num_data),100)
+        for i in numba.prange(num_data):
+            for j in numba.prange(i+1,num_data):
+                self.all_distances[i,j] = self.distance(i,j)
+                #print(i, j)
+                if i%100 == 0:
+                    print("i is ",i,end = '\r')
         
       
     
-    ##function to determine distance between clusters for single linkage returns the indices of the current dendogram to be lumped together
+    ##function to determine distance between clusters for single linkage returns the indices of the current dendogram level to be lumped together
     ## *****NOTE ***** this method is super slow. I should instead calculate all this distances once and then look them up according to the rules in the following three functions
-    def single_linkage(self):
-        import numpy
-        temp_distances = numpy.zeros((len(self.dendogram),len(self.dendogram))) # square matrix to find distance between all existing clusters
-        for i in range(len(self.dendogram)):
-            for j in range(len(self.dendogram)):
-                num_i = 1
-                num_j = 1
-                if type(self.dendogram[i]) == list:
-                    num_i = (len(self.dendogram[i]))
-                             
-                if type(self.dendogram[j]) == list:
-                    num_j = (len(self.dendogram[j]))
+    @numba.jit(parallel=True)
+    def single_linkage(self,dendogram_level):
+        unique_cluster_list = numpy.unique(self.dendogram[dendogram_level,:]) #get the list of unique clusters at this level of the dendogram
+        #print(unique_cluster_list)
+        num_unique_clusters = len(unique_cluster_list) #get the number of unique clusters at this level of the dendogram
+        #print(num_unique_clusters)
+        
 
+        
+        for i in numba.prange(num_unique_clusters):
+            for j in numba.prange(i+1,num_unique_clusters):
+                entries_i = numpy.where(self.dendogram[dendogram_level,:] == unique_cluster_list[i])[0]
+                entries_j = numpy.where(self.dendogram[dendogram_level,:] == unique_cluster_list[j])[0]
+                #num_i = len(entries_i)
+                #num_j = len(entries_j)
+
+                #print(num_i)
+                #print(num_j)
+                single_distance = 100
                 
-                short_temp_distances = numpy.zeros((num_i,num_j))
+                for z in entries_i:
+                    for zed in entries_j:
+                        single_temp_distance = self.all_distances[z,zed]
+                        if single_temp_distance < single_distance:
+                             single_distance = single_temp_distance
+                                
+                self.temp_distances[i,j] = single_distance
                 
                 
-                if num_i > 1 and num_j > 1:
-                    for z in range(num_i):
-                        for zed in range(num_j):
-                            short_temp_distances[z,zed] = self.distance(self.dendogram[i][z],self.dendogram[j][zed])
-                            
-                if num_i > 1 and num_j == 1:
-                    for z in range(num_i):
-                        for zed in range(num_j):
-                            short_temp_distances[z,zed] = self.distance(self.dendogram[i][z],self.dendogram[j])   
-                
-                if num_i == 1 and num_j > 1:
-                    for z in range(num_i):
-                        for zed in range(num_j):
-                            short_temp_distances[z,zed] = self.distance(self.dendogram[i],self.dendogram[j][zed])
-                            
-                if num_i == 1 and num_j == 1:
-                    for z in range(num_i):
-                        for zed in range(num_j):
-                            short_temp_distances[z,zed] = self.distance(self.dendogram[i],self.dendogram[j])
-                            
-                if i == j:
-                    temp_distances[i,j] = 1000000000000000
-                    
-                if i != j:
-                    temp_distances[i,j] = numpy.amin(short_temp_distances)
-                
-                print("i is ",i,end='\r')
                
-                
-        pair_first_index = numpy.where(temp_distances == numpy.amin(temp_distances))[0][0]
-        pair_second_index = numpy.where(temp_distances == numpy.amin(temp_distances))[1][0]
-        return [pair_first_index, pair_second_index]       
+                #print(short_temp_distances)
+                #self.temp_distances[i,j,dendogram_level] = numpy.amin(short_temp_distances)
+
+               
+        #print(temp_distances)      
+        #print(numpy.amin(temp_distances))
+        smallest_temp_distance = numpy.amin(self.temp_distances)
+        first_cluster_index = numpy.where(self.temp_distances == smallest_temp_distance)[0][0]
+        second_cluster_index = numpy.where(self.temp_distances == smallest_temp_distance)[1][0]
+        
+        
+        return numpy.hstack((numpy.where(self.dendogram[dendogram_level,:] == unique_cluster_list[first_cluster_index])[0],numpy.where(self.dendogram[dendogram_level,:] == unique_cluster_list[second_cluster_index])[0]))       
                 
         
-        pass
+        
     #function to determine distance between clusters for complete linkage
     def complete_linkage():
         pass
@@ -78,57 +90,74 @@ class HierarchicalClustering():
     def average_linkage():
         pass
     
+    ##function to look up the distance between two ligands from existing table OBSOLETE
+    def distance_lookup(self,object_1_index,object_2_index):
+        return self.all_distances[self.to_cluster.index(object_1),self.to_cluster.index(object_2)]
+    
     
     #function to determine distance between two ligands, uses euclidian distance, accepts ligand objects
-    def distance(self,object_1,object_2):
-        import numpy
-        total_distance = len(object_1.OnBits) + len(object_2.OnBits) -  2*numpy.sum(object_1.OnBits == object_2.OnBits)
+    def distance(self,object_1_index,object_2_index):
+        total_distance = len(self.to_cluster[object_1_index].OnBits) + len(self.to_cluster[object_2_index].OnBits) -  2*numpy.sum(self.to_cluster[object_1_index].OnBits == self.to_cluster[object_2_index].OnBits)
         euclid_dist = numpy.sqrt(total_distance)
+        #print(euclid_dist)
         return euclid_dist
         
     ##function to determine clusters
     def cluster(self):
+        self.calculate_distances()
+        print('Distances_Done')
+        self.dendogram = numpy.zeros((len(self.to_cluster),len(self.to_cluster)))
+        self.dendogram[0,:] = numpy.arange(len(self.to_cluster)) #every object gets its own cluster number
         
-        ##the first round is every object gets its own cluster
-        for z in range(len(self.to_cluster)):
-            self.dendogram.append(self.to_cluster[z])
-            
         
         ## goes through 
-        for zed in range(1,len(self.to_cluster)-self.cluster_number):
-            i = self.single_linkage()[0]
-            j = self.single_linkage()[1]
+        for zed in range(1,len(self.to_cluster)-self.cluster_number+1):
+            self.temp_distances = numpy.full((len(self.to_cluster),len(self.to_cluster)),100) # square matrix to find distance between all existing clusters
+            indices_to_lump = self.single_linkage(zed-1) #return an array of indices in the dendogram to lump together
             
-            #combines objects to be clustered in this interation in a temporary list
-            if type(self.dendogram[i]) == list and type(self.dendogram[j]) == list:
-                dendogram_temp = self.dendogram[i] + self.dendogram[j]
-            if type(self.dendogram[i]) != list and type(self.dendogram[j]) == list:
-                dendogram_temp = [self.dendogram[i]] + self.dendogram[j]
-            if type(self.dendogram[i]) == list and type(self.dendogram[j]) != list:
-                dendogram_temp = self.dendogram[i] + [self.dendogram[j]]
-            if type(self.dendogram[i]) != list and type(self.dendogram[j]) != list:
-                dendogram_temp = [self.dendogram[i]] + [self.dendogram[j]]
-            
-            #first creates a new list with out the new cluster
-            my_new_dendogram = []
-            for k in range(len(self.dendogram)):
-                if j != k and i != k:
-                    my_new_dendogram.append(self.dendogram[k])
+            lowest_previous_cluster = numpy.amin(self.dendogram[zed-1,indices_to_lump])
+            self.dendogram[zed,:] = self.dendogram[zed-1,:]
+            self.dendogram[zed,indices_to_lump] = lowest_previous_cluster
 
-            my_new_dendogram.append(my_dendogram_temp) #adds the new cluster back
-            self.dendogram = my_new_dendogram #updates the dendogram cluster list in the object
-            print("zed is ",zed)
+            
+            now = datetime.now()
+            current_time = now.strftime("%H:%M:%S")
+            print("Current Time 2 =", current_time, "zed is ", zed,end='\r')
 
         
         
     
     
 class PartitionClustering():
-    ##this class will implement K-means clustering
+    ##this class will implement traditional K-means clustering
     def __init__(self,centroid_paradigm,cluster_number):
-        self.hmm = cluster_number
+        self.cluster_number = cluster_number
 
-    ##needs a class to init
+    def get_data(self,objects_to_cluster):
+        self.to_cluster = objects_to_cluster
+        self.cluster_assignments = numpy.zeros((len(self.to_cluster),cluster_number))
+        
+    
+    #function to determine distance between two ligands, uses euclidian distance, accepts ligand objects
+    def distance(self,object_1,object_2):
+        total_distance = len(object_1.OnBits) + len(object_2.OnBits) -  2*numpy.sum(object_1.OnBits == object_2.OnBits)
+        euclid_dist = numpy.sqrt(total_distance)
+        return euclid_dist
+    
+    def initialize_centroids(self):
+        pass
+    
+    def update_centroids():
+        pass
+    
+    def assign_cluster():
+        pass
+    
+    def is_cluster_over():
+        pass
+    
+    def cluster():
+        pass
     
     
     

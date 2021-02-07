@@ -25,7 +25,7 @@ class HierarchicalClustering():
     def calculate_distances(self):
         num_data = int(len(self.to_cluster))
         print(num_data)
-        self.all_distances = numpy.full((num_data,num_data),100)
+        self.all_distances = numpy.full((num_data,num_data),1000000000000000)
         for i in numba.prange(num_data):
             for j in numba.prange(i+1,num_data):
                 self.all_distances[i,j] = self.distance(i,j)
@@ -48,34 +48,63 @@ class HierarchicalClustering():
         
         for i in numba.prange(num_unique_clusters):
             for j in numba.prange(i+1,num_unique_clusters):
-                entries_i = numpy.where(self.dendogram[dendogram_level,:] == unique_cluster_list[i])[0]
-                entries_j = numpy.where(self.dendogram[dendogram_level,:] == unique_cluster_list[j])[0]
-                #num_i = len(entries_i)
-                #num_j = len(entries_j)
+                num_i = len(numpy.where(self.dendogram[dendogram_level,:] == unique_cluster_list[i])[0])
+                num_j = len(numpy.where(self.dendogram[dendogram_level,:] == unique_cluster_list[j])[0])
 
                 #print(num_i)
                 #print(num_j)
-                single_distance = 100
                 
-                for z in entries_i:
-                    for zed in entries_j:
-                        single_temp_distance = self.all_distances[z,zed]
-                        if single_temp_distance < single_distance:
-                             single_distance = single_temp_distance
-                                
-                self.temp_distances[i,j] = single_distance
+                ligands_i
+                ligands_j
                 
                 
-               
-                #print(short_temp_distances)
-                #self.temp_distances[i,j,dendogram_level] = numpy.amin(short_temp_distances)
+                
+                
+                if num_i == 1 and num_j == 1:
+                    #print(int(unique_cluster_list[i]))
+                    #print(numpy.where(self.dendogram[dendogram_level,:]==unique_cluster_list[i])[0][0])
+                    #print(self.to_cluster[numpy.where(self.dendogram[dendogram_level,:]==int(unique_cluster_list[i]))[0]])
+                    self.temp_distances[i,j,dendogram_level] = self.all_distances[numpy.where(self.dendogram[dendogram_level,:]==unique_cluster_list[i])[0][0],numpy.where(self.dendogram[dendogram_level,:]==unique_cluster_list[j])[0][0]]
+                
+                else:
+                    short_temp_distances = numpy.zeros((num_i,num_j))
+                    
+
+                    if num_i > 1 and num_j == 1:
+                        for z in range(num_i):
+                                #print(numpy.where(self.dendogram[dendogram_level,:]==unique_cluster_list[i])[0][z])
+                                short_temp_distances[z,0] = self.all_distances[numpy.where(self.dendogram[dendogram_level,:]==unique_cluster_list[i])[0][z],numpy.where(self.dendogram[dendogram_level,:]==unique_cluster_list[j])[0][0]]
+
+                    else:
+                        
+                        if num_i == 1 and num_j > 1:
+                                for zed in range(num_j):
+                                    #print(numpy.where(self.dendogram[dendogram_level,:]==unique_cluster_list[j])[0][zed])
+                                    short_temp_distances[0,zed] = self.all_distances[numpy.where(self.dendogram[dendogram_level,:]==unique_cluster_list[i])[0][0],numpy.where(self.dendogram[dendogram_level,:]==unique_cluster_list[j])[0][zed]]
+
+                        else:
+                            
+                            if num_i > 1 and num_j > 1:
+                                for z in range(num_i):
+                                    for zed in range(num_j):
+                                        #print(numpy.where(self.dendogram[dendogram_level,:]==unique_cluster_list[i])[0][z])
+                                        short_temp_distances[z,zed] = self.all_distances[numpy.where(self.dendogram[dendogram_level,:]==unique_cluster_list[i])[0][z],numpy.where(self.dendogram[dendogram_level,:]==unique_cluster_list[j])[0][zed]]
+
+                
+                            
+                
+                    #print(short_temp_distances)
+                    self.temp_distances[i,j,dendogram_level] = numpy.amin(short_temp_distances)
+                
+                
+                if i == j:
+                    self.temp_distances[i,j,dendogram_level] = 1000000000000000
 
                
         #print(temp_distances)      
         #print(numpy.amin(temp_distances))
-        smallest_temp_distance = numpy.amin(self.temp_distances)
-        first_cluster_index = numpy.where(self.temp_distances == smallest_temp_distance)[0][0]
-        second_cluster_index = numpy.where(self.temp_distances == smallest_temp_distance)[1][0]
+        first_cluster_index = numpy.where(self.temp_distances[:,:,dendogram_level] == numpy.amin(self.temp_distances[:,:,dendogram_level]))[0][0]
+        second_cluster_index = numpy.where(self.temp_distances[:,:,dendogram_level] == numpy.amin(self.temp_distances[:,:,dendogram_level]))[1][0]
         
         
         return numpy.hstack((numpy.where(self.dendogram[dendogram_level,:] == unique_cluster_list[first_cluster_index])[0],numpy.where(self.dendogram[dendogram_level,:] == unique_cluster_list[second_cluster_index])[0]))       
@@ -108,11 +137,10 @@ class HierarchicalClustering():
         print('Distances_Done')
         self.dendogram = numpy.zeros((len(self.to_cluster),len(self.to_cluster)))
         self.dendogram[0,:] = numpy.arange(len(self.to_cluster)) #every object gets its own cluster number
-        
+        self.temp_distances = numpy.full((len(self.to_cluster),len(self.to_cluster),len(self.to_cluster)-self.cluster_number+1),100) # square matrix to find distance between all existing clusters
         
         ## goes through 
         for zed in range(1,len(self.to_cluster)-self.cluster_number+1):
-            self.temp_distances = numpy.full((len(self.to_cluster),len(self.to_cluster)),100) # square matrix to find distance between all existing clusters
             indices_to_lump = self.single_linkage(zed-1) #return an array of indices in the dendogram to lump together
             
             lowest_previous_cluster = numpy.amin(self.dendogram[zed-1,indices_to_lump])

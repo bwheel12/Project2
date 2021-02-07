@@ -12,9 +12,9 @@ The data we are considering comes from [Smith and Smith, 2020](https://chemrxiv.
 
 
 ### main
-Runs all code in align/\_\_main\_\_.py, useful for part 2
+Runs all code in clusters/\_\_main\_\_.py, useful for part 2
 ```
-python -m algs
+python -m clusters
 ```
 
 ### testing
