@@ -1,6 +1,7 @@
 import numpy
 from datetime import datetime
 import numba
+import random
 
 
 class HierarchicalClustering():
@@ -130,37 +131,106 @@ class HierarchicalClustering():
     
 class PartitionClustering():
     ##this class will implement traditional K-means clustering
-    def __init__(self,centroid_paradigm,cluster_number):
+    def __init__(self,cluster_number,OnBit_Dim):
         self.cluster_number = cluster_number
+        self.Bit_Num        = OnBit_Dim
 
     def get_data(self,objects_to_cluster):
         self.to_cluster = objects_to_cluster
-        self.cluster_assignments = numpy.zeros((len(self.to_cluster),cluster_number))
+        self.total_objects = len(self.to_cluster)
+        self.cluster_assignments = numpy.zeros((self.total_objects,1))
+        self.data_expanded = numpy.zeros((self.total_objects,self.Bit_Num))
+        i = 0
+        for x in self.to_cluster:
+            self.data_expanded[i,x.OnBits] = 1
+            i = i + 1
+        self.create_similarity_matrix()
+        print('Data Imported')
+
+            
+    def create_similarity_matrix(self):
+        self.similarity_matrix = numpy.zeros((self.total_objects,self.total_objects))
+        for i in range(self.total_objects):
+            for j in range(self.total_objects):
+                self.similarity_matrix[i,j] = self.tanamota_coeff(self.to_cluster[i],self.to_cluster[j])
+            print('i is',i,end='\r')
+                
+    def tanamota_coeff(self,object_1,object_2):
+        intersection = numpy.sum(object_1.OnBits == object_2.OnBits)
+        union = len(object_1.OnBits) + len(object_2.OnBits) - numpy.sum(object_1.OnBits == object_2.OnBits)
+        return intersection/union
         
-    
-    #function to determine distance between two ligands, uses euclidian distance, accepts ligand objects
+        
+    #function to determine distance between two ligands, uses euclidian distance, expects 1D arrays of numerical values
     def distance(self,object_1,object_2):
-        total_distance = len(object_1.OnBits) + len(object_2.OnBits) -  2*numpy.sum(object_1.OnBits == object_2.OnBits)
+        total_distance = 0
+        obj_dimension = object_1.shape[0]
+        for i in range(obj_dimension):
+            total_distance = total_distance + (object_1[i]-object_2[i])**2
         euclid_dist = numpy.sqrt(total_distance)
         return euclid_dist
     
     def initialize_centroids(self):
-        pass
+        self.centroids = numpy.zeros((self.cluster_number,self.total_objects))
+        available_indices = list(range(self.total_objects))
+        for i in range(self.cluster_number):
+            rand_location = random.randrange(len(available_indices))
+            self.centroids[i,:] = self.similarity_matrix[available_indices[rand_location],:]
+            available_indices.remove(available_indices[rand_location])
+            #print(available_indices)
+        #print(self.centroids)    
     
-    def update_centroids():
-        pass
+    def update_centroids(self):
+        for i in range(self.cluster_number):
+            cluster_data_expanded = self.similarity_matrix[numpy.where(self.cluster_assignments == i)[0],:]
+            self.centroids[i,:] = cluster_data_expanded.mean(axis=0)
+            if numpy.isnan(self.centroids[i,:]).any():
+                rand_location = random.randrange(self.total_objects)
+                self.centroids[i,:] = self.similarity_matrix[rand_location,:]
+                print("Na fixed")
     
-    def assign_cluster():
-        pass
+    def assign_cluster(self):
+        temp_center_distances = numpy.zeros((self.total_objects,self.cluster_number))
+        for i in range(self.total_objects):
+            for j in range(self.cluster_number):
+                temp_center_distances[i,j] = self.distance(self.similarity_matrix[i,:],self.centroids[j,:])
+            self.cluster_assignments[i] = numpy.argmin(temp_center_distances[i,:])
+        unique, counts = numpy.unique(self.cluster_assignments, return_counts=True)
+        print(dict(zip(unique, counts)))
+        #print(temp_center_distances)
+
     
-    def is_cluster_over():
-        pass
+    def is_cluster_over(self):
+        
+        if numpy.array_equal(self.centroids,self.centroids_1back) or numpy.array_equal(self.centroids,self.centroids_2back):
+            self.keep_clustering = False
+        
     
-    def cluster():
-        pass
-    
-    
-    
+    def cluster(self):
+        self.initialize_centroids()
+        self.keep_clustering = True
+        self.centroids_1back = numpy.zeros((self.cluster_number,self.total_objects))
+        self.centroids_2back = numpy.zeros((self.cluster_number,self.total_objects))
+        i = 1
+        while self.keep_clustering:
+            self.assign_cluster()
+            self.centroids_2back = numpy.copy(self.centroids_1back)
+            #print(self.centroids_2back)
+            self.centroids_1back = numpy.copy(self.centroids)
+            #print(self.centroids_1back)
+            self.update_centroids()
+            #print(self.centroids)
+            
+            print(self.distance(self.centroids[1,:],self.centroids_1back[1,:]))
+            print(self.distance(self.centroids[2,:],self.centroids_1back[2,:]))
+            print(self.distance(self.centroids[3,:],self.centroids_1back[3,:]))
+            
+            #self.keep_clustering = False
+            self.is_cluster_over() 
+            print('Iterrations Completed:',i,end='\r')
+            i = i +1
+        
+
     
 
 class ligand():

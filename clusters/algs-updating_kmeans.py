@@ -1,5 +1,6 @@
 import numpy
 from datetime import datetime
+import random
 
 
 
@@ -140,13 +141,15 @@ class HierarchicalClustering():
     
 class PartitionClustering():
     ##this class will implement traditional K-means clustering
-    def __init__(self,centroid_paradigm,cluster_number):
+    def __init__(self,cluster_number,OnBit_Dim):
         self.cluster_number = cluster_number
+        self.Bit_Num        = OnBit_Dim
 
     def get_data(self,objects_to_cluster):
         self.to_cluster = objects_to_cluster
-        self.cluster_assignments = numpy.zeros((len(self.to_cluster),cluster_number))
-        self.data_expanded = numpy.zeros((len(self.to_cluster),1024))
+        self.total_objects = len(self.to_cluster)
+        self.cluster_assignments = numpy.zeros((self.total_objects,1))
+        self.data_expanded = numpy.zeros((self.total_objects,self.Bit_Num))
         i = 0
         for x in self.to_cluster:
             self.data_expanded[i,x.OnBits] = 1
@@ -155,28 +158,58 @@ class PartitionClustering():
         
         
     
-    #function to determine distance between two ligands, uses euclidian distance, accepts ligand objects
+    #function to determine distance between two ligands, uses euclidian distance, OnBit arrays
     def distance(self,object_1,object_2):
-        total_distance = len(object_1.OnBits) + len(object_2.OnBits) -  2*numpy.sum(object_1.OnBits == object_2.OnBits)
+        total_distance = 0
+        obj_dimension = object_1.shape[1]
+        for i in range(obj_dimension):
+            total_distance = total_distance + (object_1[i]-object_2[i])**2
         euclid_dist = numpy.sqrt(total_distance)
         return euclid_dist
     
     def initialize_centroids(self):
-        self.centroids = numpy.zeros((self.cluster_number,1024))
-        for in in range(self.cluster_number)
-            rand_location
+        self.centroids = numpy.zeros((self.cluster_number,self.Bit_Num))
+        for i in range(self.cluster_number)
+            rand_location = random.randrange(self.total_objects)
+            self.centroids[i,:] = self.data_expanded[rand_location,:]
     
-    def update_centroids():
-        pass
+    def update_centroids(self):
+        for i in range(self.cluster_number):
+            cluster_data_expanded = self._data_expanded[numpy.where(self.cluster_assignments == i)[0],:]
+            self.centroids[i,:] = cluster_data_expanded.mean(axis=0)
     
-    def assign_cluster():
-        pass
+    def assign_cluster(self):
+        temp_center_distances = numpy.zeros((self.total_objects,self.cluster_number))
+        for i in range(self.total_objects):
+            temp_center_distances[i,0] = self.distance(self.data_expanded[i,:],self.centroids[0,:])
+            temp_center_distances[i,1] = self.distance(self.data_expanded[i,:],self.centroids[1,:])
+            temp_center_distances[i,2] = self.distance(self.data_expanded[i,:],self.centroids[2,:])
+            self.cluster_assignments[i] = numpy.argmin(temp_center_distances[i,:])
+            
+        
+            
     
     def is_cluster_over():
-        pass
+        
+        if numpy.array_equal(self.centroids,self.centroids_1back) or numpy.array_equal(self.centroids,self.centroids_2back):
+            self.keep_clustering = False
+        
     
-    def cluster():
-        pass
+    def cluster(self):
+        self.initialize_centroids()
+        self.keep_clustering = True
+        self.centroids_1back = numpy.zeros((self.cluster_number,self.Bit_Num))
+        self.centroids_2back = numpy.zeros((self.cluster_number,self.Bit_Num))
+        while self.keep_clustering:
+            self.assign_cluster()
+            self.centroids_2back = self.centroids_1back
+            self.centroids_1back = self.centroids
+            self.update_centroids()
+            
+            self.is_cluster_over() 
+            
+        
+        
     
     
     
