@@ -1,9 +1,9 @@
 pytest>=3.0
 numpy>=1.11.2
 datetime
-pickle
 matplotlib
 sklearn
 statistics
 random
 scipy
+pickle
