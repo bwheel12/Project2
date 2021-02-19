@@ -4,6 +4,4 @@ datetime
 matplotlib
 sklearn
 statistics
-random
 scipy
-pickle
